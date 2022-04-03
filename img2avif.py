@@ -18,12 +18,11 @@ from time import perf_counter
 ## ffmpeg
 ## ffprobe
 ## MP4Box
-## photon_noise_table dev tool renamed to photonnoise
+## photon_noise_table dev tool renamed to photonnoise (Optional)
 
 
 ## TODO
 ## Detect if AOMENC-PSY is installed and disable features if its not
-## Make Photon Table generation only happen at ISO levels > 0
 ## If the input image uses YUV, detect the chroma subsampling level of the source file and use that
 ## Add suppot for more input formats
 ## Better handeling of passing thread affinity
@@ -126,17 +125,19 @@ def convert(thread_affinity: list, in_file: str, out_file: str,
             quality: int, preset: int, bitdepth: int, iso: int):
     temp_ivf = change_filetype(in_file, 'ivf')
     temp_tbl = change_filetype(in_file, 'tbl')
-    gen_tbl(thread_affinity, in_file, temp_tbl, iso)
     command = 'ffmpeg -loglevel panic -i "{in_file}" -strict -2 -pix_fmt {pixfmt} -f yuv4mpegpipe - | ' \
               'aomenc - -o "{temp_ivf}" --allintra --passes=1 --threads=1 --cpu-used={preset} --end-usage=q ' \
-              '--cq-level={quality} --enable-dnl-denoising=0 --film-grain-table="{temp_tbl}" '.format(
-                in_file=in_file, pixfmt=pixfmt(bitdepth), temp_ivf=temp_ivf,
-                preset=preset, quality=quality, temp_tbl=temp_tbl)
+              '--cq-level={quality} '.format(in_file=in_file, pixfmt=pixfmt(bitdepth), temp_ivf=temp_ivf,
+                preset=preset, quality=quality)
+    if iso > 0:
+        gen_tbl(thread_affinity, in_file, temp_tbl, iso)
+        command += ' --enable-dnl-denoising=0 --film-grain-table="{temp_tbl}" '.format(temp_tbl=temp_tbl)
     command += CONFIG
     run(command, thread_affinity)
     run(f'MP4Box -add-image "{temp_ivf}":primary -ab avif -ab miaf -new "{out_file}"', thread_affinity)
     os.remove(temp_ivf)
-    os.remove(temp_tbl)
+    if iso > 0:
+        os.remove(temp_tbl)
 
 
 def gen_tbl(thread_affinity: list, in_file: str, out_file: str, iso: int):
