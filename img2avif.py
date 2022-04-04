@@ -24,7 +24,7 @@ from time import perf_counter
 ## TODO
 ## Detect if AOMENC-PSY is installed and disable features if its not
 ## Add suppot for more input formats
-## Better handeling of passing thread affinity
+## Better handeling of passing thread affinity and disabiling it
 
 
 NUM_THREADS = 4
@@ -163,7 +163,10 @@ def run(commands: str, thread_affinity=None):
     if thread_affinity is None:
         thread_affinity = [0]
     p = subprocess.Popen(args=commands, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    os.sched_setaffinity(p.pid, thread_affinity)
+    try:
+        os.sched_setaffinity(p.pid, thread_affinity)
+    except:
+        pass
     p.wait()
     if p.returncode != 0:
         raise Exception('Subprocces returned with non 0 return code ({})\n{}'.format(p.returncode,
@@ -203,3 +206,4 @@ if __name__ == '__main__':
         print(traceback.format_exc())
         # Print exception line.
         print(e)
+    exit()
