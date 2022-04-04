@@ -14,7 +14,7 @@ from time import perf_counter
 
 
 ## Dependency's
-## aomenc-psy
+## aomenc (Optionally BlueSwordM PSY fork)
 ## ffmpeg
 ## ffprobe
 ## MP4Box
@@ -22,23 +22,17 @@ from time import perf_counter
 
 
 ## TODO
-## Detect if AOMENC-PSY is installed and disable features if its not
 ## Add suppot for more input formats
 ## Better handeling of passing thread affinity and disabiling it
-
-
-NUM_THREADS = 4
-CONFIG = '--enable-dual-filter=0 --deltaq-mode=3 --enable-chroma-deltaq=1 --tune=image_perceptual_quality ' \
-         '--tune-content=default --dist-metric=qm-psnr --aq-mode=1 --enable-qm=1 --sharpness=1  --quant-b-adapt=1 ' \
-         '--disable-trellis-quant=0 '
 
 
 def main():
     args = get_args()
     check_args(args)
+    set_conf(args)
 
     if os.path.isfile(args.i):
-        convert([0], args.i, args.o, args.q, args.p, args.b, args.n)
+        convert([0], args.i, args.o, args.q, args.p, args.b, args.n, args.a)
         if args.d == 1:
             os.remove(args.i)
     else:
@@ -60,6 +54,10 @@ def get_args():
                         help='Delete source file after converting (Default: 1)')
     parser.add_argument('-n', metavar='', type=int, required=False, default=320,
                         help='Noise level for photon table (default: 320)')
+    parser.add_argument('-a', metavar='', type=str, required=False, default='',
+                        help='Pass advanced args to aomenc')
+    parser.add_argument('-w', metavar='', type=int, required=False, default=(os.cpu_count()/2),
+                        help='Change the number of workers (default: CPU#)')
 
     return parser.parse_args()
 
@@ -83,13 +81,25 @@ def check_args(args):
         args.n = 0
 
 
+def set_conf(args):
+    aomenc_help = run('aomenc --help', [0])
+    args.a = '--enable-dual-filter=0 --deltaq-mode=3 --enable-chroma-deltaq=1 '\
+             '--enable-qm=1 --sharpness=1 --disable-trellis-quant=0 '
+    if 'image_perceptual_quality' in aomenc_help:
+        print('Automatically enabling "image_perceptual_quality".')
+        args.a = '--tune=image_perceptual_quality --aq-mode=1 ' + args.a
+    if '--dist-metric' in aomenc_help:
+        print('Automatically enabling "qm-psnr".')
+        args.a = '--dist-metric=qm-psnr ' + args.a
+
+
 def batch(args):
     files = get_files(args.i)
     print('{} File(s) found'.format(len(files)))
     q = Queue()
     for f in files:
         q.put(f)
-    for i in range(NUM_THREADS):
+    for i in range(args.w):
         Thread(target=task, daemon=True, args=([i], q, args)).start()
 
     q.join()
@@ -100,7 +110,8 @@ def task(thread_affinity: list, q, args):
         start = perf_counter()
         in_file = q.get()
         try:
-            convert(thread_affinity, in_file, change_filetype(in_file, 'avif'), args.q, args.p, args.b, args.n)
+            convert(thread_affinity, in_file, change_filetype(in_file, 'avif'), args.q, args.p,
+                    args.b, args.n, args.a)
             if args.d == 1:
                 os.remove(in_file)
         except Exception as e_inner:
@@ -125,8 +136,8 @@ def get_files(dir_name):
     return files_to_process
 
 
-def convert(thread_affinity: list, in_file: str, out_file: str,
-            quality: int, preset: int, bitdepth: int, iso: int):
+def convert(thread_affinity: list, in_file: str, out_file: str, quality: int,
+            preset: int, bitdepth: int, iso: int, adv_args: str):
     temp_ivf = change_filetype(in_file, 'ivf')
     temp_tbl = change_filetype(in_file, 'tbl')
     command = 'ffmpeg -loglevel panic -i "{in_file}" -strict -2 -pix_fmt {pixfmt} -f yuv4mpegpipe - | ' \
@@ -136,7 +147,7 @@ def convert(thread_affinity: list, in_file: str, out_file: str,
     if iso > 0:
         gen_tbl(thread_affinity, in_file, temp_tbl, iso)
         command += ' --enable-dnl-denoising=0 --film-grain-table="{temp_tbl}" '.format(temp_tbl=temp_tbl)
-    command += CONFIG
+    command += adv_args
     run(command, thread_affinity)
     run(f'MP4Box -add-image "{temp_ivf}":primary -ab avif -ab miaf -new "{out_file}"', thread_affinity)
     os.remove(temp_ivf)
