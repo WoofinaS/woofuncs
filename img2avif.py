@@ -84,7 +84,7 @@ def check_args(args):
 def set_conf(args):
     aomenc_help = run('aomenc --help', [0])
     args.a = '--enable-dual-filter=0 --deltaq-mode=3 --enable-chroma-deltaq=1 '\
-             '--enable-qm=1 --sharpness=1 --disable-trellis-quant=0 '
+             '--enable-qm=1 --sharpness=1 --disable-trellis-quant=0 ' + args.a
     if 'image_perceptual_quality' in aomenc_help:
         print('Automatically enabling "image_perceptual_quality".')
         args.a = '--tune=image_perceptual_quality --aq-mode=1 ' + args.a
