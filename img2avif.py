@@ -23,7 +23,6 @@ from time import perf_counter
 
 ## TODO
 ## Detect if AOMENC-PSY is installed and disable features if its not
-## If the input image uses YUV, detect the chroma subsampling level of the source file and use that
 ## Add suppot for more input formats
 ## Better handeling of passing thread affinity
 
@@ -77,6 +76,11 @@ def check_args(args):
             raise Exception('Output Must be avif')
     elif not (os.path.isdir(args.i)):
         raise Exception('Invalid Input')
+    try:
+        run('photonnoise -h', [0])
+    except:
+        print('"photon_noise_table" devtool not detected, disabling grain synthesis.')
+        args.n = 0
 
 
 def batch(args):
