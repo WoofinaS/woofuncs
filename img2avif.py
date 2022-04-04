@@ -56,7 +56,7 @@ def get_args():
                         help='Noise level for photon table (default: 320)')
     parser.add_argument('-a', metavar='', type=str, required=False, default='',
                         help='Pass advanced args to aomenc')
-    parser.add_argument('-w', metavar='', type=int, required=False, default=(os.cpu_count()/2),
+    parser.add_argument('-w', metavar='', type=int, required=False, default=int(os.cpu_count()/2),
                         help='Change the number of workers (default: CPU#)')
 
     return parser.parse_args()
